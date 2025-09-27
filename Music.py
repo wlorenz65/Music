@@ -1,12 +1,11 @@
-import types, os, pickle, curses, curses.textpad, textwrap, re, struct, shutil, ftplib, random
+import types, os, pickle, curses, curses.textpad, textwrap, re, struct, shutil, ftplib, random, math
 
 def prompt(title, message, answer_prompt="[Ok]", default_answer=""):
   paras = message.splitlines()
   w = min(max(len(p) for p in paras), width - 2)
   lines = []
   for p in paras: lines += textwrap.wrap(p, width=w) if p else [""]
-  line_lengths = [len(l) for l in lines]
-  w = min(max(line_lengths) + 2, width)
+  w = 1 + max(len(l) for l in lines) + 1
   h = 1 + len(lines) + 2 + 1
   x = (width - w) // 2
   y = (height - h) // 2
@@ -31,6 +30,7 @@ def prompt(title, message, answer_prompt="[Ok]", default_answer=""):
   curses.curs_set(True)
   box.edit(on_keypress)
   curses.curs_set(False)
+  msgwin.clear()
   if not escape_pressed: return box.gather().rstrip()
 
 class Song(types.SimpleNamespace):
@@ -249,7 +249,7 @@ def Get():
   if prompt(" Get from NAS ", f"    {free/1e9:.1f} GB free before\n– {needed/1e9:.1f} GB needed for {l.selected} files\n= {(free-needed)/1e9:.1f} GB free afterwards\n\nStarting at tracknum {tracknum+1:03d}", "Enter or Esc") is None: return
   try:
     ftp = ftplib.FTP("192.168.178.1")
-    ftp.login(user="ftpuser", passwd="zzvacxd0")
+    ftp.login(user="ftpuser", passwd=os.environ["FTPPASSWD"])
     ftp.sendcmd("OPTS UTF8 ON")
     ftp.encoding = "utf-8"
     ftp.cwd("D/Music")
@@ -305,21 +305,21 @@ def SelectDir():
 def Random():
   os.chdir("/storage/emulated/0/Music/")
   total, used, free = shutil.disk_usage(".")
-  leave = prompt(" Random ", f"{free/1e9:.1f} GB available\nHow many GB leave free?", ">", "1")
+  leave = prompt(" Random ", f"{free/1e9:.1f} GB available\nHow many GB leave free?", ">", ".8")
   if leave == None: return
   leave = float(leave) * 1e9
   next = [9e99]
   weights = [None]
   lists = [None]
   for stars in range(1, 6):
-    num_songs = 0
+    n = 0
     lists.append([])
     for s in songs:
       if s.stars == stars:
-        num_songs += 1
+        n += 1
         if not s.lru:
           lists[stars].append(s)
-    weights.append(1 / num_songs / (None, .5, 1, 3, 6, 17)[stars])
+    weights.append(1 / n / math.exp(stars))
     next.append(weights[stars] / 2)
   plays = []
   while free > leave and len(plays) < 1000:
@@ -415,7 +415,7 @@ for li, l in enumerate(lists):
       on += 1
       ol.add(e.song.path())
 del index
-if on:
+if 0 and on:
   prompt(" Orphans ", f"{on} songs are no longer in {songfile}: {ol}")
 
 os.environ.setdefault("ESCDELAY", "25")
