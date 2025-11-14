@@ -47,6 +47,7 @@ class Song(types.SimpleNamespace):
 
 class Entry(types.SimpleNamespace):
   selected = False
+  localfile = None
 
 class List(types.SimpleNamespace):
   query = ""
@@ -201,24 +202,22 @@ def Backspace():
 def Delete():
   try:
     os.chdir(f"/storage/emulated/0/Music/[{active}]")
-    filenames = {fn[4:]:fn[:4] for fn in os.listdir(".")}
+    dellocal = True
   except:
-    filenames = {}
-  for i in reversed(range(len(l.entries))):
-    if l.entries[i].selected:
-      s = l.entries[i].song
-      name = f"{s.year} {s.artist} - {s.title}.mp3"
-      if name in filenames:
-        os.remove(filenames[name] + name)
+    dellocal = False
+  for i, e in reversed(list(enumerate(l.entries))):
+    if e.selected:
+      if dellocal and e.localfile:
+        os.remove(e.localfile)
+        del e.localfile
       del l.entries[i]
       if i < l.cursor:
         l.cursor -= 1
   l.selected = 0
-  try:
+  if dellocal:
     os.chdir("..")
-    os.rmdir(f"[{active}]")
-  except:
-    pass
+    try: os.rmdir(f"[{active}]")
+    except: pass
 
 def id3tag(s):
   def frame(bid, str):
@@ -259,8 +258,8 @@ def Get():
         draw()
         s = e.song
         tracknum += 1
-        name = f"{tracknum:03d} {s.year} {s.artist} - {s.title}.mp3"
-        with open(name, "wb") as f:
+        e.localfile = f"{tracknum:03d} {s.year} {s.artist} - {s.title}.mp3"
+        with open(e.localfile, "wb") as f:
           f.write(id3tag(s))
           ftp.retrbinary(f"RETR {s.path()}", f.write)
         del e.selected
@@ -342,12 +341,12 @@ def ClearBlockstart():
   l.blockstart = None
 
 bindings = {
-   curses.KEY_UP: Up,
-   curses.KEY_DOWN: Down,
-   curses.KEY_LEFT: PageUp,
-   curses.KEY_RIGHT: PageDown,
-   "h": Home,
-   "e": End,
+  curses.KEY_UP: Up,
+  curses.KEY_DOWN: Down,
+  curses.KEY_LEFT: PageUp,
+  curses.KEY_RIGHT: PageDown,
+  "h": Home,
+  "e": End,
   "+": Like,
   "-": Unlike,
   "i": Info,
