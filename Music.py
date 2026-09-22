@@ -1,11 +1,11 @@
-import types, os, pickle, curses, curses.textpad, textwrap, re, struct, shutil, ftplib, random, math
+import types, os, pickle, curses, curses.textpad, textwrap, re, struct, shutil, ftplib, random
 
-def prompt(title, message, answer_prompt="[Ok]", default_answer=""):
+def prompt(title, message, answer_prompt="[Ok]", default_answer="", min_width=0):
   paras = message.splitlines()
   w = min(max(len(p) for p in paras), width - 2)
   lines = []
   for p in paras: lines += textwrap.wrap(p, width=w) if p else [""]
-  w = 1 + max(len(l) for l in lines) + 1
+  w = 1 + max(max(len(l) for l in lines), min_width) + 1
   h = 1 + len(lines) + 2 + 1
   x = (width - w) // 2
   y = (height - h) // 2
@@ -35,15 +35,13 @@ def prompt(title, message, answer_prompt="[Ok]", default_answer=""):
 
 class Song(types.SimpleNamespace):
   track = 0
-  chartpos = 0
   stars = -1
   lru = False
   todo = ""
 
-  def path(self):
-    track = f"{self.track:02d} " if self.track else ""
-    chartpos = f"- {self.chartpos:03d} - " if self.chartpos else ""
-    return f"{self.dir}/{track}{self.year} {chartpos}{self.artist} - {self.title}.mp3"
+  def path(s):
+    track = f"{s.track:02d} " if s.track else ""
+    return f"{s.dir}/{track}{s.year} {s.artist} - {s.title}.mp3"
 
 class Entry(types.SimpleNamespace):
   selected = False
@@ -56,8 +54,8 @@ class List(types.SimpleNamespace):
   top = 0
   cursor = 0
 
-  def __init__(self):
-    self.entries = []
+  def __init__(l):
+    l.entries = []
 
 def dir_without_artist(s):
   a = s.artist
@@ -95,7 +93,6 @@ def draw():
     attr = curses.color_pair(11 if e.selected else 7)
     stdscr.addstr(y * 2 + 1, 7, f"{s.title[:width-8]:{width-8}}".translate(trans), attr | curses.A_BOLD)
     m = f" {s.year} {s.artist} | {dir_without_artist(s)}".translate(trans)
-    if s.chartpos: m += f" | {s.chartpos:03}"
     if s.track: m += f" | {s.track:02}"
     stdscr.addstr(y * 2 + 2, 1, f"{m[:width-2]:{width-2}}", attr)
     if s.todo:
@@ -136,7 +133,7 @@ def Unlike():
 
 def Info():
   m = ""
-  fields = ["dir", "track", "year", "chartpos", "artist", "title", "size", "time", "md5sum", "stars"]
+  fields = ["dir", "track", "year", "artist", "title", "size", "time", "md5sum", "stars"]
   for f in fields:
     if f in s.__dict__:
       m += f"{f:>6s} = {repr(s.__dict__[f])}\n"
@@ -146,7 +143,7 @@ def Info():
   prompt(" Info ", m)
 
 def Todo():
-  m = prompt(" Todo ", "Later on archive disk:", ">", s.todo)
+  m = prompt(" Todo ", "Later on archive disk:", ">", s.todo, 50)
   if m is None: return
   if m:
     s.todo = m
@@ -192,12 +189,7 @@ def Search():
     break
   l1.query = q
   l = lists[active] = l1
-  stdscr.clear() #curses bugfix
-
-def Backspace():
-  if l.cursor > 0: l.cursor -= 1
-  l.selected -= l.entries[l.cursor].selected
-  del l.entries[l.cursor]
+  stdscr.clear()
 
 def Delete():
   try:
@@ -216,7 +208,9 @@ def Delete():
   l.selected = 0
   if dellocal:
     os.chdir("..")
-    try: os.rmdir(f"[{active}]")
+    try:
+      os.rmdir(f"[{active}]")
+      l.query = ""
     except: pass
 
 def id3tag(s):
@@ -228,8 +222,6 @@ def id3tag(s):
   sep = s.dir.find(" - ")
   if sep != -1:
     album += " - " + s.dir[sep + 3:]
-  elif s.chartpos:
-    album += f" - {s.chartpos:03d}"
   frames += frame(b'TALB', album)
   size = len(frames)
   return b'ID3\3\0\0\0\0' + bytes([size >> 7 & 0x7F, size & 0x7F]) + frames
@@ -293,14 +285,6 @@ def Block():
 def SelectAll():
   select(0, len(l.entries) - 1)
 
-def SelectDir():
-  a = b = l.cursor
-  while a > 0 and l.entries[a - 1].song.dir == s.dir:
-    a -= 1
-  while b < len(l.entries) - 1 and l.entries[b + 1].song.dir == s.dir:
-    b += 1
-  select(a, b)
-
 def Random():
   os.chdir("/storage/emulated/0/Music/")
   total, used, free = shutil.disk_usage(".")
@@ -318,7 +302,7 @@ def Random():
         n += 1
         if not s.lru:
           lists[stars].append(s)
-    weights.append(1 / n / math.exp(stars))
+    weights.append(1 / n / 2.5**stars)
     next.append(weights[stars] / 2)
   plays = []
   while free > leave and len(plays) < 1000:
@@ -355,8 +339,6 @@ bindings = {
   10: Enter,
   "b": Block,
   1: SelectAll,
-  "d": SelectDir,
-  curses.KEY_BACKSPACE: Backspace,
   "D": Delete,
   "g": Get,
 }

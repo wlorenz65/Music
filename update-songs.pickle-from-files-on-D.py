@@ -6,37 +6,32 @@ import types, os, re, hashlib, pickle
 
 class Song(types.SimpleNamespace):
   track = None
-  chartpos = None
 
-  def path(self):
-    track = f"{self.track:02d} " if self.track else ""
-    chartpos = f"- {self.chartpos:03d} - " if self.chartpos else ""
-    return f"{self.dir}/{track}{self.year} {chartpos}{self.artist} - {self.title}.mp3"
+  def path(s):
+    track_ = f"{s.track:02d} " if s.track else ""
+    return f"{s.dir}/{track_}{s.year} {s.artist} - {s.title}.mp3"
 
-  def init_from_path(self, p):
-    self.dir, p = os.path.split(p[:-4])
+  def init_from_path(s, p):
+    s.dir, p = os.path.split(p[:-4])
     if re.match(r"\d{2} ", p):
-      self.track = int(p[:2])
+      s.track = int(p[:2])
       p = p[3:]
     if re.match(r"(19|20)\d\d ", p):
-      self.year = int(p[:4])
+      s.year = int(p[:4])
       p = p[5:]
-    if re.match(r"- \d{3} - ", p):
-      self.chartpos = int(p[2:5])
-      p = p[8:]
     sep = p.index(" - ")
-    self.artist = p[:sep]
-    self.title = p[sep+3:]
+    s.artist = p[:sep]
+    s.title = p[sep+3:]
 
-  def read_md5sum(self):
-    with open(self.path(), "rb") as file:
-      self.md5sum = hashlib.md5(file.read()).hexdigest()
+  def read_md5sum(s):
+    with open(s.path(), "rb") as file:
+      s.md5sum = hashlib.md5(file.read()).hexdigest()
 
 musicdir = "/media/wlorenz65/D/Music/"
 if not os.path.exists(musicdir):
   exit(musicdir, "not present")
 
-songfile = os.abspath("songs.pickle")
+songfile = os.path.abspath("songs.pickle")
 with open(songfile, "rb") as f:
   old = pickle.load(f)
 print(len(old), "entries read from", songfile)
@@ -70,9 +65,9 @@ renamed = []
 for n in reversed(range(len(new))):
   for o in range(len(old)):
     if old[o].size == new[n].size and old[o].time == new[n].time:
-      print(f"\n\033[33mREN {old[o].path()}\n -> {new[n].path()}\033[0m")
+      print(f"\n\033[33mREN {old[o].path()}\n -> {new[n].path()}\033[m")
       for k in old[o].__dict__:
-        if k not in ("dir", "track", "year", "chartpos", "artist", "title"):
+        if k not in ("dir", "track", "year", "artist", "title"):
           new[n].__dict__[k] = old[o].__dict__[k]
       renamed.append(new[n])
       del old[o], new[n]
@@ -83,20 +78,19 @@ for n in reversed(range(len(new))):
   for o in range(len(old)):
     if old[o].artist == new[n].artist and old[o].title == new[n].title:
       new[n].read_md5sum()
-      print(f"\n\033[91mMOD {old[o].path()}\n{old[o]}\n{new[n]}\033[0m")
+      print(f"\n\033[91mMOD {old[o].path()}\n{old[o]}\n{new[n]}\033[m")
       if old[o].track: del old[o].track
-      if old[o].chartpos: del old[o].chartpos
       old[o].__dict__.update(new[n].__dict__)
       modified.append(old[o])
       del old[o], new[n]
       break
 
 for s in old:
-  print(f"\n\033[34mDEL {s}\033[0m")
+  print(f"\n\033[34mDEL {s}\033[m")
 
 for s in new:
   s.read_md5sum()
-  print(f"\n\033[32mNEW {s}\033[0m")
+  print(f"\n\033[32mNEW {s}\033[m")
 
 print()
 print(len(unchanged), "unchanged")

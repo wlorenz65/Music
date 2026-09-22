@@ -6,16 +6,14 @@ print("estimated runtime", minutes, "minutes, finished at", time.strftime("%H:%M
 
 class Song(types.SimpleNamespace):
   track = None
-  chartpos = None
 
-  def path(self):
-    track = f"{self.track:02d} " if self.track else ""
-    chartpos = f"- {self.chartpos:03d} - " if self.chartpos else ""
-    return f"{self.dir}/{track}{self.year} {chartpos}{self.artist} - {self.title}.mp3"
+  def path(s):
+    track_ = f"{s.track:02d} " if s.track else ""
+    return f"{s.dir}/{track_}{s.year} {s.artist} - {s.title}.mp3"
 
-  def read_md5sum(self):
-    with open(self.path(), "rb") as file:
-      self.md5sum = hashlib.md5(file.read()).hexdigest()
+  def read_md5sum(s):
+    with open(s.path(), "rb") as file:
+      s.md5sum = hashlib.md5(file.read()).hexdigest()
 
 musicdir = "/media/wlorenz65/D/Music/"
 if not os.path.exists(musicdir):
